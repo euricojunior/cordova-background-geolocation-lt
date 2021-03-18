@@ -1,6 +1,59 @@
 # Change Log
 
-# 3.9.0 &mdash; 2020-08-20
+## 4.0.0 &mdash; 2021-03-09
+
+* [Changed][iOS] Migrate `TSLocationManager.framework` to new `.xcframework` for *MacCatalyst* support with new Apple silcon.
+
+### :warning: Breaking Change:  Requires `cocoapods >= 1.10+`.
+
+*iOS'* new `.xcframework` requires *cocoapods >= 1.10+*:
+
+```console
+$ pod --version
+// if < 1.10.0
+$ sudo gem install cocoapods
+```
+
+### :warning: Breaking Change: `cordova-plugin-background-fetch`.
+
+- See [Breaking Changes with `cordova-plugin-background-fetch@7.0.0`](https://github.com/transistorsoft/cordova-plugin-background-fetch/blob/master/CHANGELOG.md#701--2021-02-18)
+
+## 3.10.0 &mdash; 2020-11-26
+- [Changed] Remove `Config.encrypt` feature.  This feature has always been flagging a Security Issue with Google Play Console and now the iOS `TSLocationManager` is being flagged for a virus by *Avast* *MacOS:Pirrit-CS[PUP]*.  This seems to be a false-positive due to importing [RNCryptor](https://github.com/RNCryptor/RNCryptor) package.
+
+## 3.9.4 &mdash; 2020-11-06
+
+- [Fixed][iOS] Fix issue with iOS buffer-timer with requestPermission.  Could execute callback twice.
+- [Fixed][iOS] When requesting `WhenInUse` location permission, if user grants "Allow Once" then you attempt to upgrade to `Always`, iOS simply does nothing and the `requestPermission` callback would not be called.  Implemented a `500ms` buffer timer to detect if the iOS showed a system dialog (signalled by the firing of `WillResignActive` life-cycle notification).  If the app does *not* `WillResignActive`, the buffer timer will fire, causing the callback to `requestPermission` to fire.
+- [Fixed][Android] Issue with `requestPermission` not showing `backgroundPermissionRationale` dialog on `targetSdkVersion 29` when using `locationAuthorizationRequest: 'WhenInUse'` followed by upgrade to `Always`.
+- [Added] Added two new `Location.coords` attributes `speed_accuracy` and `heading_accuracy`.
+- [Fixed][iOS] fix bug providing wrong Array of records to `sync` method when no HTTP service is configured.
+- [Fixed][Android] Add extra logic for `isMainActivityActive` to detect when `TSLocationManagerActivity` is active.
+
+## 3.9.2 &mdash; 2020-10-02
+
+- [Added][Android] Added special mechanism for *Capacitor* to allow for *Android Headless Mode*.  See the updated Setup instructions in the Wiki.
+- [Fixed][Android] `isMainActivityActive` reported incorrect results for Android apps configured with "product flavors".  This would cause the SDK to fail to recognize app is in "headless" state and fail to transmit headless events.
+- [Added][Android] _Android 11_, `targetSdkVersion 30` support for new Android background location permission with new `Config.backgroundLocationRationale`.  Android 11 has [changed location authorization](https://developer.android.com/preview/privacy/location) and no longer offers the __`[Allow all the time]`__ button on the location authorization dialog.  Instead, Android now offers a hook to present a custom dialog to the user where you will explain exactly why you require _"Allow all the time"_ location permission.  This dialog can forward the user directly to your application's __Location Permissions__ screen, where the user must *explicity* authorize __`[Allow all the time]`__.  The Background Geolocation SDK will present this dialog, which can be customized with `Config.backgroundPermissionRationale`.
+
+```javascript
+BackgroundGeolocation.ready({
+  locationAuthorizationRequest: 'Always',
+  backgroundPermissionRationale: {
+    title: "Allow access to this device's location in the background?",
+    message: "In order to allow X, Y and Z in the background, please enable 'Allow all the time' permission",
+    positiveAction: "Change to Allow all the time",
+    negativeAction: "Cancel"
+  }
+});
+```
+![](https://dl.dropbox.com/s/343nbrzpaavfser/android11-location-authorization-rn.gif?dl=1)
+
+- [Fixed][iOS] Add intelligence to iOS preventSuspend logic to determine distance from stationaryLocation using configured stationaryRadius rather than calculated based upon accuracy of stationaryLocation.  If a stationaryLocation were recorded having a poor accuracy (eg: 1000), the device would have to walk at least 1000 meters before preventSuspend would engage tracking-state.
+- [Fixed][Android] Android LocationRequestService, used for getCurrentPosition and motionChange position, could remain running after entering stationary state if a LocationAvailability event was received before the service was shut down.
+- [Fixed][iOS] Ignore didChangeAuthorizationStatus events when disabled and no requestPermissionCallback exists.  The plugin could possibly respond to 3rd-party permission plugin events.
+
+## 3.9.0 &mdash; 2020-08-20
 
 - [Added][iOS] iOS 14 introduces a new switch on the initial location authorization dialog, allowing the user to "disable precise location".  In support of this, a new method `BackgroundGeolocation.requestTemporaryFullAccuracy` has been added for requesting the user enable "temporary high accuracy" (until the next launch of your app), in addition to a new attribute `ProviderChangeEvent.accuracyAuthorization` for learning its state in the event `onProviderChange`:
 ![](https://dl.dropbox.com/s/dj93xpg51vspqk0/ios-14-precise-on.png?dl=1)

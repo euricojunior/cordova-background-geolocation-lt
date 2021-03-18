@@ -1,6 +1,7 @@
 /// <reference path="../types.d.ts" />
 /// <reference path="./LocationAuthorizationAlert.d.ts" />
-
+/// <reference path="./PermissionRationale.d.ts" />
+///
 ///
 declare module "cordova-background-geolocation-lt" {
   /**
@@ -193,7 +194,7 @@ declare module "cordova-background-geolocation-lt" {
     *   BackgroundGeolocation.findOrCreateTransistorAuthorizationToken("my-company-name", "my-username");
     *
     * BackgroundGeolocation.ready({
-    *   url: url + "/v2/locations",
+    *   url: url + "/api/locations",
     *   authorization: {
     *     strategy: "JWT",
     *     accessToken: token.accessToken,
@@ -308,9 +309,35 @@ declare module "cordova-background-geolocation-lt" {
     stationaryRadius?: number;
 
     /**
-    * Disable automatic, speed-based [[distanceFilter]] scaling.
+    * The default timeout in _seconds_ when requesting a location before the SDK gives up and fires a [[LocationError]].
     *
-    * Defaults to **`false`**.  Set **`true`** to disable automatic, speed-based [[distanceFilter]] elasticity.
+    * Defaults to `60` seconds.
+    *
+    * @example
+    * ```typescript
+    * // With onLocation event
+    * BackgroundGeolocation.onLocation((Location location) => {
+    *   console.log('[onLocation] success:', location);
+    * }, ((error) => {
+    *   if (error.code == 408) {
+    *     console.log("[onLocation] error: LOCATION TIMEOUT", error);
+    *   }
+    * });
+    *
+    * // With getCurrentPosition:
+    * try {
+    *   let location = await BackgroundGeolocation.getCurrentPosition({samples: 3});
+    * } catch((error) => {
+    *   if (error.code == 408) {
+    *     console.log("[getCurrentPosition] error: LOCATION TIMEOUT",  error);
+    *   }
+    * });
+    * ```
+    *
+    * ## See Also:
+    * - [[BackgroundGeolocation.getCurrentPosition]]
+    * - [[BackgroundGeolocation.onLocation]]
+    *
     */
     locationTimeout?: number;
 
@@ -1176,113 +1203,6 @@ declare module "cordova-background-geolocation-lt" {
     disableAutoSyncOnCellular?: boolean;
 
     /**
-    * Encrypt location data in the SDK's SQLite datbase and HTTP requests (__`AES-256-CBC`__).
-    *
-    * Defaults to `false`.  When enabled, the SDK will encrypt location data in its SQLite database.  When executing HTTP requests, the SDK will encrypt the entire request payload and encode the result as `Base64`.
-    *
-    *
-    * ```typescript
-    * BackgroundGeolocation.ready({
-    *   encrypt: true
-    * });
-    * ```
-    *
-    * ## Encryption Password
-    *
-    * The SDK's encryption stack requires a configurable encryption *password*.
-    *
-    * ## iOS
-    *
-    * - ### React Native
-    * In your __`Info.plist`__, Add the `String` key `BACKGROUND_GEOLOCATION_ENCRYPTION_PASSWORD`.
-    *
-    * ![](https://www.dropbox.com/s/amea0siu9mxroh3/ios-encryption_password.png?dl=1)
-    *
-    * - ### Cordova
-    *
-    * 📂 __`config.xml`__
-    *
-    * ```xml
-    * <platform name="ios">
-    *     <config-file parent="BACKGROUND_GEOLOCATION_ENCRYPTION_PASSWORD" target="*-Info.plist">
-    *         <string>"your secret encryption password</string>
-    *     </config-file>
-    * </platform>
-    * ```
-    *
-    * ## Android
-    *
-    * - ### React Native
-    *
-    * In your __`AndroidManifest.xml`__, add the following `<meta-data>` element:
-    *
-    * ```xml
-    * <application>
-    *     .
-    *     .
-    *     .
-    *     <meta-data
-    android:name="com.transistorsoft.locationmanager.ENCRYPTION_PASSWORD" android:value="your secret encryption password" />
-    * </application>
-    * ```
-    *
-    * - ### Cordova
-    *
-    * 📂 __`config.xml`__
-    *
-    * ```xml
-    * <platform name="android">
-    *     <config-file parent="/manifest/application" target="app/src/main/AndroidManifest.xml">
-    *         <meta-data android:name="com.transistorsoft.locationmanager.ENCRYPTION_PASSWORD" android:value="your secret encryption password" />
-    *     </config-file>
-    * </platform>
-    * ```
-    *
-    * ## RNCryptor Encryption Stack
-    *
-    * The SDK uses the [RNCryptor Encryption Stack](https://github.com/RNCryptor/RNCryptor-Spec/blob/master/RNCryptor-Spec-v3.md).  See [RNCypto](https://github.com/RNCryptor) for a list of available language implementations.
-    *
-    * After decoding the `Base64`-encoded data from the HTTP request body, you'll have a binary payload.  Extract bytes as follows:
-    *
-    * ![](https://dl.dropbox.com/s/owp61pt3cqfij16/RNCrypto-DataFormat-Spec.png?dl=1)
-    *
-    * | Name             | Description                                       |
-    * |------------------|---------------------------------------------------|
-    * | `version`        | (1 byte): Data format version. (Currently `3`).   |
-    * | `options`        | (1 byte): bit 0 - uses password (Always `1`).     |
-    * | `encryptionSalt` | (8 bytes)                                         |
-    * | `HMACSalt`       | (8 bytes)                                         |
-    * | `IV`             | (16 bytes)                                        |
-    * | `ciphertext`     | (variable) -- Encrypted in CBC mode               |
-    * | `HMAC`           | (32 bytes)
-    *
-    * See [here](https://gist.github.com/christocracy/f814dd35cfd9eced5d4de3025c38333c) for a NodeJS-based decryption example.
-    *
-    * ### Password-based decryption (abstract language)
-    *
-    * ```
-    * def Decrypt(Password, Message) =
-    *   (Version,Options,EncryptionSalt,HMACSalt,IV,Ciphertext,HMAC) = Split(Message)
-    *     EncryptionKey = PKBDF2(EncryptionSalt, 32 length, 10k iterations, Password)
-    *     HMACKey = PKBDF2(HMACSalt, 32 length, 10k iterations, password)
-    *     Header = 3 || 1 || EncryptionSalt || HMACSalt || IV
-    *     Plaintext = AES256Decrypt(Ciphertext, ModeCBC, IV, EncryptionKey)
-    *     ComputedHMAC = HMAC(Header || Ciphertext, HMACKey, SHA-256)
-    *     if ConsistentTimeEqual(ComputedHMAC, HMAC) return Plaintext else return Error
-    * ```
-    *
-    * 1. Pull apart the pieces as described in the data format.
-    * 1. Generate the encryption key using PBKDF2 (see your language docs for how to call this). Pass the password as a string, the random encryption salt, 10,000 iterations, and SHA-1 PRF. Request a length of 32 bytes.
-    * 1. Generate the HMAC key using PBKDF2 (see your language docs for how to call this). Pass the password as a string, the random HMAC salt, 10,000 iterations, and SHA-1 PRF. Request a length of 32 bytes.
-    * 1. Decrypt the data using the encryption key (above), the given IV, AES-256, and the CBC mode. This is the default mode for almost all AES encryption libraries.
-    * 1. Pass your header and ciphertext to an HMAC function, along with the HMAC key (above), and the PRF "SHA-256" (see your library's docs for what the names of the PRF functions are; this might also be called "SHA-2, 256-bits").
-    * 1. Compare the computed HMAC with the expected HMAC using a constant time equality function (see below). If they are equal, return the plaintext. Otherwise, return an error
-    *
-    * Note: The RNCryptor format v3 uses SHA-1 for PBKDF2, but SHA-256 for HMAC.
-    */
-    encrypt?: boolean;
-
-    /**
     * Configures the SDK for [[Authorization]] with your server (eg: [JSON Web Token](https://jwt.io/)).
     *
     * ### ⚠️ Only [JWT](https://jwt.io/) is currently supported.
@@ -1816,7 +1736,8 @@ declare module "cordova-background-geolocation-lt" {
     *
     * If you configure __`locationAuthorizationRequest: 'Always'`__ but the user authorizes only __`[When in Use]`__ , the plugin will detect this and show the [[locationAuthorizationAlert]] dialog (see [[disableLocationAuthorizationAlert]] to disable this behaviour).
     *
-    * ## iOS
+    * # iOS
+    * ----------------------------------------------------------------
     *
     * iOS 13 introduced a significant modification to *location authorization* (See this [blog entry](https://medium.com/@transistorsoft/ios-13-and-android-q-support-beb7595d2c24)).  No longer will the __`[Always allow]`__ option appear on the initial authorization dialog.  Instead, iOS will prompt the user with a second "authorization upgrade" dialog, asking the user if they'd like to grant __`[Keep Only While Using ]`__ or __`[Change to Always Allow]`__.
     *
@@ -1882,21 +1803,67 @@ declare module "cordova-background-geolocation-lt" {
     * }
     * ```
     *
-    * ## Android
+    * &nbsp;
+    * # Android
+    * ----------------------------------------------------------------
     *
-    * ### Android 10
+    * ## Android 10
     *
     * Like iOS 12, Android 10 now forces your app to offer *both* __`[Allow all the time]`__ and __`[Allow only while using]`__ options.
     *
     * ![](https://dl.dropbox.com/s/jv3g2sgap69qhfx/android-10-location-authorization-dialog.png?dl=1)
     *
     *
-    * ### Android 11+
+    * ## Android 11+ (with `targetSdkVersion 30+`)
     *
-    * Just as in iOS 13, Android 11 has [changed location authorization](https://developer.android.com/preview/privacy/location) and no longer offers the __`[Allow all the time]`__ button on the location authorization dialog.  Instead, Android will now offer a link **Allow in settings**, where the user must *explicity* authorize __`[Allow all the time]`__.
+    * Just as in iOS 13/14, Android 11 has [changed location authorization](https://developer.android.com/preview/privacy/location) and no longer offers the __`[Allow all the time]`__ button on the location authorization dialog.  Instead, Android now offers a hook to present a custom dialog to the user where you will explain exactly why you require _"Allow all the time"_ location permission.
     *
-    * ![](https://dl.dropbox.com/s/kbfwqf2pffwvcc2/android11-location-authorization-always.png?dl=1)
+    * This dialog can forward the user directly to your application's __Location Permissions__ screen, where the user must *explicity* authorize __`[Allow all the time]`__.  The Background Geolocation SDK will present this dialog, which can be customized with [[Config.backgroundPermissionRationale]].
+    * - Android will offer the [[Config.backgroundPermissionRationale]] dialog __just once__.  Once the user presses the `positiveAction` on the dialog, it will __not__ be shown again (pressing `[Cancel]` button does not count).
+    * - If the user resets your application's _Location Permissions_ to __`[Ask every time]`__, the [[Config.backgroundPermissionRationale]] _can_ be shown once again.
+
+    * ![](https://dl.dropbox.com/s/4fq4erz2lpqz00m/android11-location-permission-rationale-dialog.png?dl=1)
     * ![](https://dl.dropbox.com/s/dy65k8b0sgj5cgy/android11-location-authorization-upgrade-settings.png?dl=1)
+    *
+    * ```typescript
+    * BackgroundGeolocation.ready({
+    *  locationAuthorizationRequest: 'Always',
+    *  backgroundPermissionRationale: {
+    *   title: "Allow access to this device's location in the background?",
+    *   message: "In order to allow X, Y and Z, please enable 'Allow all the time permission",
+    *   positiveAction: "Change to Allow all the time"
+    *  }
+    * });
+    * ```
+    *
+    *
+    * ### 1.  __`locationAuthorizationRequest: 'Always'`__:
+    *
+    * If your app requests __`locationAuthorizationRequest: 'Always'`__, the user must first authorize __`[While using the app]`__, followed *immediately* by the [[Config.backgroundPermissionRationale]] dialog prompting the user to upgrade location permission with __`[Allow all the time]`__:
+    *
+    * ![](https://dl.dropbox.com/s/343nbrzpaavfser/android11-location-authorization-rn.gif?dl=1)
+    *
+    * ### 2.  __`locationAuthorizationRequest: 'WhenInUse'`__:
+    *
+    * Only the initial dialog will be shown:
+    *
+    * ![](https://dl.dropbox.com/s/ymybwme7fvda0ii/android11-location-when-in-use-system-dialog.png?dl=1)
+    *
+    * *However*, if your app *later* uses __`setConfig`__ to change __`locationAuthorizationRequest: 'Always'`__, the SDK will *immediately* show the [[Config.backgroundPermissionRationale]] dialog:
+    *
+    * ![](https://dl.dropbox.com/s/4fq4erz2lpqz00m/android11-location-permission-rationale-dialog.png?dl=1)
+    *
+    * ### 3.  __`locationAuthorizationRequest: 'Any'`__:
+    *
+    * Same as __`Always`__
+    *
+    * ## Android 11+ (with `targetSdkVersion <=29`)
+    *
+    * Just to add a bit more confusion, for Android 11+ devices and your app built with __`targetSdkVersion 29`__, Android will present an extra dialog after the user clicks through on the [[Config.backgroundPermissionRationale]] dialog, where the user is prompted with a link _"Allow in Settings"*, rather than forwarding them directly to the _Location Permissions_ screen, as with __`targetSdkVersion 30+`__:
+    *
+    * ![](https://dl.dropbox.com/s/mp3zykohr95wafq/android11-location-authorization-upgrade.png?dl=1)
+    *
+    * ![](https://dl.dropbox.com/s/a01e0c6750bqylr/android11-location-authorization-cordova-targetSdkVersion29.gif?dl=1)
     *
     */
     locationAuthorizationRequest?: LocationAuthorizationRequest;
@@ -2357,11 +2324,59 @@ declare module "cordova-background-geolocation-lt" {
     forceReloadOnSchedule?: boolean;
 
     /**
+    * (__Android 11+__) Configure the dialog presented to the user when *Always* location permission is requested.
+    *
+    * Just as in iOS 13/14, Android 11 has [changed location authorization](https://developer.android.com/preview/privacy/location) and no longer offers the __`[Allow all the time]`__ button on the location authorization dialog.  Instead, Android now offers a hook to present a custom dialog to the user where you will explain exactly why you require _"Allow all the time"_ location permission.
+    *
+    * This dialog can forward the user directly to your application's __Location Permissions__ screen, where the user must *explicity* authorize __`[Allow all the time]`__.  The Background Geolocation SDK will present this dialog, which can be customized with [[backgroundPermissionRationale]].
+    *
+    * ![](https://dl.dropbox.com/s/343nbrzpaavfser/android11-location-authorization-rn.gif?dl=1)
+    *
+    * - Android will offer the [[backgroundPermissionRationale]] dialog __just once__.  Once the user presses the `positiveAction` on the dialog, it will __not__ be shown again (pressing `[Cancel]` button does not count).
+    * - If the user resets your application's _Location Permissions_ to __`[Ask every time]`__, the [[backgroundPermissionRationale]] _can_ be shown once again.
+    *
+    * ![](https://dl.dropbox.com/s/4fq4erz2lpqz00m/android11-location-permission-rationale-dialog.png?dl=1)
+    * ![](https://dl.dropbox.com/s/dy65k8b0sgj5cgy/android11-location-authorization-upgrade-settings.png?dl=1)
+    *
+    * @example
+    * ```javascript
+    * BackgroundGeolocation.ready({
+    *  locationAuthorizationRequest: 'Always',
+    *  backgroundPermissionRationale: {
+    *    title: "Allow {applicationName} to access to this device's location in the background?",
+    *    message: "In order to track your activity in the background, please enable {backgroundPermissionOptionLabel} location permission",
+    *    positiveAction: "Change to {backgroundPermissionOptionLabel}",
+    *    negativeAction: "Cancel"
+    *  }
+    * });
+    * ```
+    *
+    * ## Template Tags
+    *
+    * A limited number of template-tags are supported in each of the attributes, by wrapping with __`{tagName}`__:
+    *
+    * | Template Tag                            | Default value         | Description                                                            |
+    * |-----------------------------------------|-----------------------|------------------------------------------------------------------------|
+    * | __`{backgroundPermissionOptionLabel}`__ | *Allow all the time*  | (*API Level 30*) Gets the localized label that corresponds to the option in settings for granting background access. |
+    * | __`{applicationName}`__                 | *Your App Name*       | Returns the localized name of your application from `AndroidManifest` |
+    *
+    * &nbsp;
+    *
+    * __See also:__
+    * - [[locationAuthorizationRequest]]
+    * - [[BackgroundGeolocation.requestPermission]]
+    * - [Location udpates in Android 11](https://developer.android.com/about/versions/11/privacy/location)
+    *
+    *
+    */
+    backgroundPermissionRationale?: PermissionRationale;
+
+    /**
     * [__Android only]__ Configures the persistent foreground-service [[Notification]] required by Android.
     *
     * ![](https://dl.dropbox.com/s/acuhy5cu4p7uofr/android-foreground-service-default.png?dl=1)
     *
-    * See [Notification] for detailed usage.
+    * See [[Notification]] for detailed usage.
     *
     * @example
     * ```typescript
