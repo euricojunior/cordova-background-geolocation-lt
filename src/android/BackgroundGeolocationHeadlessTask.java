@@ -10,13 +10,10 @@ import com.transistorsoft.locationmanager.event.GeofencesChangeEvent;
 import com.transistorsoft.locationmanager.event.ConnectivityChangeEvent;
 import com.transistorsoft.locationmanager.event.HeadlessEvent;
 import com.transistorsoft.locationmanager.event.HeartbeatEvent;
-import com.transistorsoft.locationmanager.event.MotionChangeEvent;
+import com.transistorsoft.locationmanager.event.LocationEvent;
 import com.transistorsoft.locationmanager.event.LocationProviderChangeEvent;
 import com.transistorsoft.locationmanager.http.HttpResponse;
-import com.transistorsoft.locationmanager.location.TSLocation;
 import com.transistorsoft.locationmanager.logger.TSLog;
-
-
 /**
  * BackgroundGeolocationHeadlessTask
  * This component allows you to receive events from the BackgroundGeolocation plugin in the native Android environment while your app has been *terminated*,
@@ -39,10 +36,9 @@ public class BackgroundGeolocationHeadlessTask  {
         if (name.equals(BackgroundGeolocation.EVENT_TERMINATE)) {
             JSONObject state = event.getTerminateEvent();
         } else if (name.equals(BackgroundGeolocation.EVENT_LOCATION)) {
-            TSLocation location = event.getLocationEvent();
+            LocationEvent locationEvent = event.getLocationEvent();
         } else if (name.equals(BackgroundGeolocation.EVENT_MOTIONCHANGE)) {
-            MotionChangeEvent motionChangeEvent = event.getMotionChangeEvent();
-            TSLocation location = motionChangeEvent.getLocation();
+            LocationEvent motionChangeEvent = event.getMotionChangeEvent();
         } else if (name.equals(BackgroundGeolocation.EVENT_HTTP)) {
             HttpResponse response = event.getHttpEvent();
         } else if (name.equals(BackgroundGeolocation.EVENT_PROVIDERCHANGE)) {
